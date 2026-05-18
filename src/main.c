@@ -39,6 +39,7 @@ LOG_MODULE_REGISTER(zbot_main, LOG_LEVEL_INF);
 static struct net_mgmt_event_callback g_wifi_cb;
 static K_SEM_DEFINE(g_wifi_connected_sem, 0, 1);
 static volatile bool g_wifi_connected;
+static volatile bool g_tg_running;
 
 static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 			       struct net_if *iface)
@@ -52,6 +53,16 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt
 			k_sem_give(&g_wifi_connected_sem);
 		} else {
 			LOG_WRN("WiFi connect failed (status %d)", status->status);
+		}
+		if (g_tg_running && !g_wifi_connected) {
+			LOG_WRN("WiFi disconnected while Telegram bot is running. Stopping Telegram polling.");
+			telegram_stop();
+		} else if (!g_tg_running && g_wifi_connected && config_has_tg_token()) {
+			LOG_INF("WiFi connected and Telegram token available. Starting Telegram polling.");
+			int rc = telegram_start();
+			if (rc < 0) {
+				LOG_WRN("Telegram auto-start failed: %d", rc);
+			}
 		}
 	} else if (mgmt_event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
 		LOG_WRN("WiFi disconnected");
@@ -133,10 +144,12 @@ int main(void)
 
 	/* Telegram */
 	if (config_has_tg_token()) {
+#if 0
 		rc = telegram_start();
 		if (rc < 0) {
 			LOG_WRN("Telegram auto-start failed: %d", rc);
 		}
+#endif
 	}
 
 	/* Print banner */

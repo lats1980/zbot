@@ -37,6 +37,13 @@
 #include "agent.h"
 #include "json_util.h"
 
+#if defined(CONFIG_POSIX_API)
+#include <zephyr/posix/arpa/inet.h>
+#include <zephyr/posix/netdb.h>
+#include <zephyr/posix/unistd.h>
+#include <zephyr/posix/sys/socket.h>
+#endif
+
 LOG_MODULE_REGISTER(zbot_telegram, LOG_LEVEL_INF);
 
 /* ------------------------------------------------------------------ */
@@ -113,8 +120,8 @@ static bool tg_json_get_int(const char *json, const char *key, int64_t *out)
 
 static int tg_connect(void)
 {
-	struct zsock_addrinfo hints = {0};
-	struct zsock_addrinfo *res = NULL;
+	struct addrinfo hints = {0};
+	struct addrinfo *res = NULL;
 	int sock;
 	int verify;
 	int rc;
@@ -122,30 +129,30 @@ static int tg_connect(void)
 	hints.ai_family   = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
-	rc = zsock_getaddrinfo(TG_HOST, "443", &hints, &res);
+	rc = getaddrinfo(TG_HOST, "443", &hints, &res);
 	if (rc != 0) {
 		LOG_ERR("DNS resolution failed for " TG_HOST ": %d", rc);
 		return -EHOSTUNREACH;
 	}
 
-	sock = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
+	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
 	if (sock < 0) {
 		LOG_ERR("TLS socket create failed: errno=%d", -errno);
-		zsock_freeaddrinfo(res);
+		freeaddrinfo(res);
 		return -errno;
 	}
 
 	/* Skip peer certificate verification — avoids bundling CA cert.
 	 * To enable: supply CA cert and use TLS_PEER_VERIFY_REQUIRED. */
 	verify = TLS_PEER_VERIFY_NONE;
-	zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
-	zsock_setsockopt(sock, SOL_TLS, TLS_HOSTNAME, TG_HOST, sizeof(TG_HOST) - 1);
+	setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
+	setsockopt(sock, SOL_TLS, TLS_HOSTNAME, TG_HOST, sizeof(TG_HOST) - 1);
 
-	rc = zsock_connect(sock, res->ai_addr, res->ai_addrlen);
-	zsock_freeaddrinfo(res);
+	rc = connect(sock, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
 	if (rc < 0) {
 		LOG_ERR("Connect to " TG_HOST " failed: %d", -errno);
-		zsock_close(sock);
+		close(sock);
 		return -errno;
 	}
 
@@ -192,7 +199,7 @@ static int tg_get(const char *path, char *rx_buf, size_t rx_len)
 	req.recv_buf_len = rx_len - 1;
 
 	rc = http_client_req(sock, &req, TG_HTTP_TO_MS, NULL);
-	zsock_close(sock);
+	close(sock);
 
 	return rc < 0 ? rc : 0;
 }
@@ -228,7 +235,7 @@ static int tg_post(const char *path, const char *body, char *rx_buf, size_t rx_l
 	req.recv_buf_len  = rx_len - 1;
 
 	rc = http_client_req(sock, &req, TG_HTTP_TO_MS, NULL);
-	zsock_close(sock);
+	close(sock);
 
 	return rc < 0 ? rc : 0;
 }

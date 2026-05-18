@@ -25,6 +25,13 @@
 #include "config.h"
 #include "json_util.h"
 
+#if defined(CONFIG_POSIX_API)
+#include <zephyr/posix/arpa/inet.h>
+#include <zephyr/posix/netdb.h>
+#include <zephyr/posix/unistd.h>
+#include <zephyr/posix/sys/socket.h>
+#endif
+
 LOG_MODULE_REGISTER(zbot_llm, LOG_LEVEL_INF);
 
 /* HTTP request timeout (ms) */
@@ -214,74 +221,81 @@ void llm_client_init(void)
 
 static int resolve_and_connect(const struct llm_config *cfg)
 {
-	struct zsock_addrinfo hints = {0};
-	struct zsock_addrinfo *res = NULL;
+	struct addrinfo hints = {
+		.ai_flags = AI_NUMERICSERV, /* Let getaddrinfo() set port */
+		.ai_socktype = SOCK_STREAM,
+	};
+	struct addrinfo *res = NULL;
 	char port_str[8];
 	int sock = -1;
 	int rc;
+	char peer_addr[INET6_ADDRSTRLEN];
 
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
+	//hints.ai_family = AF_INET;
+	//hints.ai_socktype = SOCK_STREAM;
 
 	snprintf(port_str, sizeof(port_str), "%u", cfg->port);
 
-	rc = zsock_getaddrinfo(cfg->endpoint_host, port_str, &hints, &res);
+	rc = getaddrinfo(cfg->endpoint_host, port_str, &hints, &res);
 	if (rc != 0) {
 		LOG_ERR("DNS resolution failed for %s: %d", cfg->endpoint_host, rc);
 		return -EHOSTUNREACH;
 	}
 
+	inet_ntop(res->ai_family, &((struct sockaddr_in *)(res->ai_addr))->sin_addr, peer_addr,
+		  INET6_ADDRSTRLEN);
+
 	if (cfg->use_tls) {
 		sec_tag_t sec_tag_list[] = {CA_CERTIFICATE_TAG};
 		int verify;
 
-		sock = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
+		sock = socket(res->ai_family, SOCK_STREAM, IPPROTO_TLS_1_2);
 		if (sock < 0) {
 			LOG_ERR("TLS socket create failed: errno=%d", -errno);
-			zsock_freeaddrinfo(res);
+			freeaddrinfo(res);
 			return -errno;
 		}
 
-		rc = zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST,
+		rc = setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST,
 				      sec_tag_list, sizeof(sec_tag_list));
 		if (rc < 0) {
 			LOG_ERR("TLS_SEC_TAG_LIST failed: errno=%d", -errno);
-			zsock_freeaddrinfo(res);
+			freeaddrinfo(res);
 			return -errno;
 		}
 
 		verify = cfg->tls_verify ? TLS_PEER_VERIFY_REQUIRED : TLS_PEER_VERIFY_NONE;
-		rc = zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
+		rc = setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
 		if (rc < 0) {
 			LOG_ERR("TLS_PEER_VERIFY failed: errno=%d", -errno);
-			zsock_freeaddrinfo(res);
+			freeaddrinfo(res);
 			return -errno;
 		}
 
-		rc = zsock_setsockopt(sock, SOL_TLS, TLS_HOSTNAME,
+		rc = setsockopt(sock, SOL_TLS, TLS_HOSTNAME,
 				      cfg->endpoint_host,
 				      strlen(cfg->endpoint_host));
 		if (rc < 0) {
 			LOG_ERR("TLS_HOSTNAME failed: errno=%d", -errno);
-			zsock_freeaddrinfo(res);
+			freeaddrinfo(res);
 			return -errno;
 		}
 	} else {
-		sock = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	}
 
 	if (sock < 0) {
 		LOG_ERR("Failed to create socket: %d", -errno);
-		zsock_freeaddrinfo(res);
+		freeaddrinfo(res);
 		return -errno;
 	}
 
-	rc = zsock_connect(sock, res->ai_addr, res->ai_addrlen);
-	zsock_freeaddrinfo(res);
+	rc = connect(sock, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
 
 	if (rc < 0) {
 		LOG_ERR("Connect failed: %d", -errno);
-		zsock_close(sock);
+		close(sock);
 		return -errno;
 	}
 
@@ -311,7 +325,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	const struct llm_config *cfg;
 	struct http_request req = {0};
 	int body_len;
-	int sock;
+	static int sock = -1;
 	int rc;
 
 	if (!messages_cb || !resp) {
@@ -333,9 +347,11 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	}
 
 	/* Connect */
-	sock = resolve_and_connect(cfg);
 	if (sock < 0) {
-		return sock;
+		sock = resolve_and_connect(cfg);
+		if (sock < 0) {
+			return sock;
+		}
 	}
 
 	/* Build Authorization header */
@@ -378,7 +394,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	LOG_DBG("Sending LLM request to %s%s", cfg->endpoint_host, cfg->endpoint_path);
 
 	rc = http_client_req(sock, &req, LLM_HTTP_TIMEOUT_MS, NULL);
-	zsock_close(sock);
+	// close(sock); // Don't close the socket as it might be reused
 
 	if (rc < 0) {
 		LOG_ERR("HTTP request failed: %d", rc);
