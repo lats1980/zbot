@@ -42,4 +42,9 @@
 		led1 = &led1;
 		sw0  = &button0;
 	};
+
+	sensor_sim: sensor-sim {
+		compatible = "nordic,sensor-sim";
+		acc-signal = "wave";
+	};
 };

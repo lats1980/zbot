@@ -1,0 +1,14 @@
+/*
+ * Copyright (c) 2026 Lingao Meng
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * zbot - nRF7002-DK overlay
+ */
+
+/ {
+	sensor_sim: sensor-sim {
+		compatible = "nordic,sensor-sim";
+		acc-signal = "wave";
+	};
+};

@@ -23,6 +23,10 @@ target_sources(app PRIVATE
     src/skills/skill.c
 )
 
+if(CONFIG_ENVIRONMENT_SENSOR)
+    target_sources(app PRIVATE src/env_sensor.c)
+endif()
+
 target_include_directories(app PRIVATE src src/skills src/tools)
 
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)

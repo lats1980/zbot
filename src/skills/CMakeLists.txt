@@ -3,3 +3,4 @@
 
 add_subdirectory(gpio)
 add_subdirectory(system)
+add_subdirectory(environment_sensor)

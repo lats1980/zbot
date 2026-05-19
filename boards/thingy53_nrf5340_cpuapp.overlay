@@ -32,7 +32,7 @@
 };
 
 &i2c1 {
-	bme688@76 {
+	bme680: bme688@76 {
 		compatible = "bosch,bme680";
 		reg = <0x76>;
 	};
