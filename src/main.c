@@ -41,6 +41,17 @@ static K_SEM_DEFINE(g_wifi_connected_sem, 0, 1);
 static volatile bool g_wifi_connected;
 static volatile bool g_tg_running;
 
+static void telegram_trigger(struct k_work *work);
+static K_WORK_DEFINE(telegram_trigger_work, telegram_trigger);
+
+static void telegram_trigger(struct k_work *work)
+{
+	int rc = telegram_start();
+	if (rc < 0) {
+		LOG_WRN("Telegram auto-start failed: %d", rc);
+	}
+}
+
 static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 			       struct net_if *iface)
 {
@@ -59,10 +70,7 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt
 			telegram_stop();
 		} else if (!g_tg_running && g_wifi_connected && config_has_tg_token()) {
 			LOG_INF("WiFi connected and Telegram token available. Starting Telegram polling.");
-			int rc = telegram_start();
-			if (rc < 0) {
-				LOG_WRN("Telegram auto-start failed: %d", rc);
-			}
+			k_work_submit(&telegram_trigger_work);
 		}
 	} else if (mgmt_event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
 		LOG_WRN("WiFi disconnected");

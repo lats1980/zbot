@@ -315,7 +315,7 @@ static int http_response_cb(struct http_response *rsp, enum http_final_call fina
 int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_response *resp,
 	     void *args)
 {
-	static const char *referer_header = "HTTP-Referer: https://github.com/LingaoM/zbot\r\n";
+	//static const char *referer_header = "HTTP-Referer: https://github.com/LingaoM/zbot\r\n";
 	static const char *content_type = "Content-Type: application/json\r\n";
 	static const char *title_header = "X-Title: zbot tests\r\n";
 	static char provider_header[CONFIG_PROVIDER_ID_MAX_LEN + 32];
@@ -325,7 +325,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	const struct llm_config *cfg;
 	struct http_request req = {0};
 	int body_len;
-	static int sock = -1;
+	int sock;
 	int rc;
 
 	if (!messages_cb || !resp) {
@@ -347,11 +347,9 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	}
 
 	/* Connect */
+	sock = resolve_and_connect(cfg);
 	if (sock < 0) {
-		sock = resolve_and_connect(cfg);
-		if (sock < 0) {
-			return sock;
-		}
+		return sock;
 	}
 
 	/* Build Authorization header */
@@ -371,7 +369,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	const char *extra_headers[] = {
 		auth_header,
 		content_type,
-		referer_header,
+		//referer_header,
 		title_header,
 		cfg->provider_id[0] ? provider_header : NULL,
 		NULL,
@@ -398,12 +396,14 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 
 	if (rc < 0) {
 		LOG_ERR("HTTP request failed: %d", rc);
-		return rc;
+		goto clear;
 	}
 
 	resp->http_status = req.internal.response.http_status_code;
 
 	/* Parse the response JSON */
 	rc = parse_llm_response(rsp_body, resp);
+clear:
+	close(sock); // Don't close the socket as it might be reused
 	return rc;
 }
