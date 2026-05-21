@@ -31,6 +31,10 @@
 #include "tools.h"
 #include "telegram.h"
 
+#if defined(CONFIG_BOARD_THINGY53_NRF5340_CPUAPP)
+#include <nrfx_clock.h>
+#endif
+
 LOG_MODULE_REGISTER(zbot_main, LOG_LEVEL_INF);
 
 #if defined(CONFIG_WIFI)
@@ -124,7 +128,14 @@ int main(void)
 	int rc;
 
 	printk("Start\n");
+#if defined(CONFIG_BOARD_THINGY53_NRF5340_CPUAPP)
+#if NRFX_CLOCK_ENABLED && (defined(CLOCK_FEATURE_HFCLK_DIVIDE_PRESENT) || NRF_CLOCK_HAS_HFCLK192M)
+    /* set clock to 128 MHz */
+    nrfx_clock_divider_set(NRF_CLOCK_DOMAIN_HFCLK, NRF_CLOCK_HFCLK_DIV_1);
+#endif
+#endif //CONFIG_BOARD_THINGY53_NRF5340_CPUAPP
 
+    printk("CPU frequency: %d MHz\n", SystemCoreClock / MHZ(1));
 	/* Memory — NVS mount and load persisted summary */
 	rc = memory_init();
 	if (rc < 0) {

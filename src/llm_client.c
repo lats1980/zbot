@@ -325,7 +325,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	const struct llm_config *cfg;
 	struct http_request req = {0};
 	int body_len;
-	int sock;
+	static int sock = -1;
 	int rc;
 
 	if (!messages_cb || !resp) {
@@ -345,11 +345,15 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 		LOG_ERR("Failed to build request body: %d", body_len);
 		return body_len;
 	}
-
+retry:
 	/* Connect */
-	sock = resolve_and_connect(cfg);
-	if (sock < 0) {
-		return sock;
+	if (sock >= 0) {
+		LOG_WRN("Reusing previously allocated socket %d. This may cause issues if the server closed the connection.", sock);
+	} else {
+		sock = resolve_and_connect(cfg);
+		if (sock < 0) {
+			return sock;
+		}
 	}
 
 	/* Build Authorization header */
@@ -389,13 +393,17 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 	req.recv_buf = rsp_body;
 	req.recv_buf_len = sizeof(rsp_body) - 1;
 
-	LOG_DBG("Sending LLM request to %s%s", cfg->endpoint_host, cfg->endpoint_path);
+	LOG_INF("Sending LLM request to %s%s", cfg->endpoint_host, cfg->endpoint_path);
 
 	rc = http_client_req(sock, &req, LLM_HTTP_TIMEOUT_MS, NULL);
 	// close(sock); // Don't close the socket as it might be reused
 
 	if (rc < 0) {
 		LOG_ERR("HTTP request failed: %d", rc);
+		if (sock == -ETIMEDOUT) {
+			sock = -1; // Mark socket as invalid so it will be re-created on next call
+			goto retry;
+		}
 		goto clear;
 	}
 
@@ -403,6 +411,7 @@ int llm_chat(llm_messages_cb_t messages_cb, llm_tools_cb_t tools_cb, struct llm_
 
 	/* Parse the response JSON */
 	rc = parse_llm_response(rsp_body, resp);
+	return rc;
 clear:
 	close(sock); // Don't close the socket as it might be reused
 	return rc;
