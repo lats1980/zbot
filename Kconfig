@@ -29,4 +29,24 @@ config ENV_SENSOR_GAS_RES_SIM_MAX_DIFF
 
 endif # ENVIRONMENT_SENSOR
 
+config DELAYED_WORK_SKILL
+	bool "Delayed work skill support"
+	default y
+	help
+	  Enable delayed work skill for scheduling LLM chat messages
+	  with a time delay.
+
+if DELAYED_WORK_SKILL
+
+config DELAYED_WORK_MAX_ITEMS
+	int "Maximum number of delayed work items"
+	default 3
+	range 1 100
+	help
+	  Maximum number of delayed work items that can be allocated
+	  simultaneously. Each item consumes memory for storing the
+	  message and work structure.
+
+endif # DELAYED_WORK_SKILL
+
 source "Kconfig.zephyr"

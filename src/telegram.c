@@ -258,7 +258,7 @@ static void tg_build_path(const char *method, char *buf, size_t len)
 /*
  * Send a text message to chat_id.
  */
-static int tg_send_message(int64_t chat_id, const char *text)
+int tg_send_message(int64_t chat_id, const char *text)
 {
 	static char path[CONFIG_TG_TOKEN_MAX_LEN + 32];
 	static char body[TG_TX_BUF_LEN];
@@ -490,4 +490,9 @@ void telegram_stop(void)
 bool telegram_is_running(void)
 {
 	return g_tg_running;
+}
+
+int64_t telegram_get_chat_id(void)
+{
+	return g_agent_work.chat_id;
 }

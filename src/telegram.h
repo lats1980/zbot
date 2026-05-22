@@ -36,6 +36,10 @@ void telegram_stop(void);
 /** @brief Return true if the polling thread is running. */
 bool telegram_is_running(void);
 
+int64_t telegram_get_chat_id(void);
+
+int tg_send_message(int64_t chat_id, const char *text);
+
 #ifdef __cplusplus
 }
 #endif
