@@ -427,10 +427,14 @@ static void tg_poll_loop(void *p1, void *p2, void *p3)
 						/* Wait up to 60 s for response */
 						if (k_sem_take(&g_agent_done_sem,
 							       K_SECONDS(60)) == 0) {
-							tg_send_message(chat_id,
-								g_agent_work.rc == 0
-								? g_agent_work.response
-								: "Error processing request.");
+									if (g_agent_work.rc == 0) {
+										tg_send_message(chat_id, g_agent_work.response);
+									} else if (g_agent_work.rc == -ENODATA) {
+										tg_send_message(chat_id, "No response from model. Please try again with a different prompt.");
+									} else {
+										tg_send_message(chat_id,
+											"Error processing request.");
+									}
 						} else {
 							tg_send_message(chat_id,
 								"Request timed out.");
