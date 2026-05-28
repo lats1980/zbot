@@ -26,11 +26,13 @@
 #define LED0_NODE DT_ALIAS(led0)
 #define LED1_NODE DT_ALIAS(led1)
 #define LED2_NODE DT_ALIAS(led2)
+#define LED3_NODE DT_ALIAS(led3)
 #define BTN0_NODE DT_ALIAS(sw0)
 
 #define HAS_LED0 (DT_NODE_EXISTS(LED0_NODE) && DT_NODE_HAS_STATUS(LED0_NODE, okay))
 #define HAS_LED1 (DT_NODE_EXISTS(LED1_NODE) && DT_NODE_HAS_STATUS(LED1_NODE, okay))
 #define HAS_LED2 (DT_NODE_EXISTS(LED2_NODE) && DT_NODE_HAS_STATUS(LED2_NODE, okay))
+#define HAS_LED3 (DT_NODE_EXISTS(LED3_NODE) && DT_NODE_HAS_STATUS(LED3_NODE, okay))
 #define HAS_BTN0 (DT_NODE_EXISTS(BTN0_NODE) && DT_NODE_HAS_STATUS(BTN0_NODE, okay))
 
 #if HAS_LED0
@@ -41,6 +43,9 @@ static const struct gpio_dt_spec g_led1 = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
 #endif
 #if HAS_LED2
 static const struct gpio_dt_spec g_led2 = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
+#endif
+#if HAS_LED3
+static const struct gpio_dt_spec g_led3 = GPIO_DT_SPEC_GET(LED3_NODE, gpios);
 #endif
 #if HAS_BTN0
 static const struct gpio_dt_spec g_btn0 = GPIO_DT_SPEC_GET(BTN0_NODE, gpios);
@@ -55,17 +60,22 @@ static void ensure_init(void)
 	}
 #if HAS_LED0
 	if (device_is_ready(g_led0.port)) {
-		gpio_pin_configure_dt(&g_led0, GPIO_OUTPUT_INACTIVE);
+		gpio_pin_configure_dt(&g_led0, GPIO_OUTPUT_INACTIVE | GPIO_INPUT);
 	}
 #endif
 #if HAS_LED1
 	if (device_is_ready(g_led1.port)) {
-		gpio_pin_configure_dt(&g_led1, GPIO_OUTPUT_INACTIVE);
+		gpio_pin_configure_dt(&g_led1, GPIO_OUTPUT_INACTIVE | GPIO_INPUT);
 	}
 #endif
 #if HAS_LED2
 	if (device_is_ready(g_led2.port)) {
-		gpio_pin_configure_dt(&g_led2, GPIO_OUTPUT_INACTIVE);
+		gpio_pin_configure_dt(&g_led2, GPIO_OUTPUT_INACTIVE | GPIO_INPUT);
+	}
+#endif
+#if HAS_LED3
+	if (device_is_ready(g_led3.port)) {
+		gpio_pin_configure_dt(&g_led3, GPIO_OUTPUT_INACTIVE | GPIO_INPUT);
 	}
 #endif
 #if HAS_BTN0
@@ -114,6 +124,11 @@ static int set_led(const char *pin, int value)
 		return gpio_pin_set_dt(&g_led2, value);
 	}
 #endif
+#if HAS_LED3
+	if (strcmp(pin, "led3") == 0 && device_is_ready(g_led3.port)) {
+		return gpio_pin_set_dt(&g_led3, value);
+	}
+#endif
 
 	return -ENODEV;
 }
@@ -150,12 +165,14 @@ static int action_read(const char *arg, char *result, size_t res_len)
 		val = gpio_pin_get_dt(&g_led2);
 	}
 #endif
+#if HAS_LED3
+	if (strcmp(pin, "led3") == 0 && device_is_ready(g_led3.port)) {
+		val = gpio_pin_get_dt(&g_led3);
+	}
+#endif
 
 	if (val < 0) {
-		snprintf(result, res_len,
-			 "{\"error\":\"unknown pin '%s'\","
-			 "\"known_pins\":[\"led0\",\"led1\",\"button0\"]}",
-			 pin);
+		snprintf(result, res_len, "{\"error\":\"unknown pin '%s'\"}", pin);
 		return -ENODEV;
 	}
 	snprintf(result, res_len, "{\"pin\":\"%s\",\"value\":%d}", pin, val);

@@ -7,13 +7,13 @@ tools: tool_exec({"tool":"gpio","args":{...}})
 
 ### read
 Read the current level of a GPIO pin.
-- `pin`: `led0`, `led1`, `led2`, `led3` or `button0`
+- `pin`: `led0`, `led1`, or `button0`
 
 Example: `{"tool":"gpio","args":{"action":"read","pin":"led0"}}`
 
 ### write
 Set the output level of a GPIO pin.
-- `pin`: `led0`, `led1`, `led2`, or `led3`
+- `pin`: `led0` or `led1`
 - `value`: `0` (off) or `1` (on)
 
 Example: `{"tool":"gpio","args":{"action":"write","pin":"led0","value":1}}`
